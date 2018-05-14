@@ -116,7 +116,7 @@ def which(commands, paths = default_path):
 			if os.path.exists(full):
 				return full
 
-	raise ValueError('No command from %s in path %s' % (commands, paths))
+	raise ValueError('Unable to find %s in path %s' % (commands, paths))
 
 
 
@@ -126,5 +126,3 @@ class Config:
 
 	def __getitem__(self, name):
 		return run_command(self.command, [ '--' + name ]).strip()
-
-llvm_config = Config(which([ 'llvm-config33', 'llvm-config' ]))

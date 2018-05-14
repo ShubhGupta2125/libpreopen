@@ -1,3 +1,10 @@
+/**
+ * @file   internal.h
+ * @brief  Declarations of internal data structures and functions
+ *
+ * @cond internal
+ */
+
 /*-
  * Copyright (c) 2016-2017 Stanley Uche Godfrey
  * Copyright (c) 2016-2017 Jonathan Anderson
@@ -31,55 +38,49 @@
 #ifndef LIBPO_INTERNAL_H
 #define LIBPO_INTERNAL_H
 
+#include <sys/cdefs.h>
+
 #ifdef WITH_CAPSICUM
 #include <sys/capsicum.h>
 #endif
 
+#include <assert.h>
 #include <stdbool.h>
 
-/**
- * A directory that has been pre-opened.
- */
-struct po_dir{
-	/** The path that maps to this directory */
-	const char *dirname;
+#include "libpreopen.h"
 
-	/** The directory's descriptor */
-	int dirfd;
+/**
+ * An entry in a po_map.
+ *
+ * @internal
+ */
+struct po_map_entry {
+	/**
+	 * The name this file or directory is mapped to.
+	 *
+	 * This name should look like a path, but it does not necessarily need
+	 * match to match the path it was originally obtained from.
+	 */
+	const char *name;
+
+	/** File descriptor (which may be a directory) */
+	int fd;
 
 #ifdef WITH_CAPSICUM
-	/** Capability rights associated with the directory. */
+	/** Capability rights associated with the file descriptor */
 	cap_rights_t rights;
 #endif
 };
 
 // Documented in external header file
 struct po_map {
-	struct po_dir *entries;
+	//! @internal
+	int refcount;
+	struct po_map_entry *entries;
 	size_t capacity;
 	size_t length;
 };
 
-/**
- * An entry in the packed version of `struct po_map`.
- */
-struct po_packed_entry {
-	int fd;         /* file descriptor */
-	int offset;     /* offset of name within trailer string */
-	int len;        /* name length */
-};
-
-/**
- * Packed-in-a-buffer representation of a `struct po_map`.
- *
- * An object of this type will be immediately followed in memory by a trailer
- * of string data of length `trailer_len`.
- */
-struct po_packed_map{
-	int count;              /* number of entries */
-	int trailer_len;        /* length of trailer string */
-	struct po_packed_entry *entries;
-};
 
 /**
  * Is a directory a prefix of a given path?
@@ -88,12 +89,41 @@ struct po_packed_map{
  * @param   dirlen  the length of @b dir
  * @param   path    a path that may have @b dir as a prefix,
  *                  e.g., `/foo/bar/baz`
+ *
+ * @internal
  */
-bool po_isprefix(const char *dir, size_t dirlen, const char *path);
+bool	po_isprefix(const char *dir, size_t dirlen, const char *path);
+
+
+/**
+ * Check that a @ref po_map is valid (assert out if it's not).
+ *
+ * @internal
+ */
+#ifdef NDEBUG
+#define po_map_assertvalid(...)
+#else
+void	po_map_assertvalid(const struct po_map *);
+#endif
+
+/**
+ * Enlarge a @ref po_map's capacity.
+ *
+ * This results in new memory being allocated and existing entries being copied.
+ * If the allocation fails, the function will return NULL but the original
+ * map will remain valid.
+ *
+ * @internal
+ */
+struct po_map* po_map_enlarge(struct po_map *map);
 
 /**
  * Store an error message in the global "last error message" buffer.
+ *
+ * @internal
  */
 void po_errormessage(const char *msg);
 
 #endif /* LIBPO_INTERNAL_H */
+
+/** @endcond */

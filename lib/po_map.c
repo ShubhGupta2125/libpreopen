@@ -1,5 +1,6 @@
-/*
- * Copyright (c) 2016 Jonathan Anderson and Stanley Uche Godfrey
+/*-
+ * Copyright (c) 2016 Stanley Uche Godfrey
+ * Copyright (c) 2016, 2018 Jonathan Anderson
  * All rights reserved.
  *
  * This software was developed at Memorial University under the
@@ -8,6 +9,7 @@
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
+ *
  * 1. Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
@@ -26,48 +28,90 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-/*
- * RUN: %cc -c %cflags -D TEST_DATA_DIR="\"%p/Inputs\"" %s -o %t.o
- * RUN: %cc %t.o %ldflags -o %t
- * RUN: %p/run-with-preload %lib %t > %t.out
- * RUN: %filecheck %s -input-file %t.out
+
+/**
+ * @file  po_map.c
+ * @brief Implementation of po_map management functions
  */
 
-#include <assert.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <string.h>
 
-#include "libpreopen.h"
+#include "internal.h"
 
-#define TEST_DIR(name) \
-	TEST_DATA_DIR name
-
-
-int main(int argc, char *argv[])
+struct po_map*
+po_map_create(int capacity)
 {
-	struct po_map *map = po_map_get();
-	
-	int foo = openat(AT_FDCWD, TEST_DIR("/foo"), O_RDONLY);
-	po_add(map, "foo", foo);
+	struct po_map *map;
 
-	int wibble = po_preopen(map, TEST_DIR("/baz/wibble"), O_DIRECTORY);
-	assert(wibble != -1);
+	map = malloc(sizeof(struct po_map));
+	if (map == NULL) {
+		return (NULL);
+	}
 
-	// CHECK: Opening foo/bar/hi.txt...
-	printf("Opening foo/bar/hi.txt...\n");
-	int fd = open("foo/bar/hi.txt", O_RDONLY);
+	map->entries = calloc(sizeof(struct po_map_entry), capacity);
+	if (map->entries == NULL) {
+		free(map);
+		return (NULL);
+	}
 
-	// CHECK-NOT: hi.txt: -1
-	printf("hi.txt: %d\n", fd);
+	map->refcount = 1;
+	map->capacity = capacity;
+	map->length = 0;
 
-	// CHECK: Opening baz/wibble/bye.txt...
-	printf("Opening baz/wibble/bye.txt...\n");
-	fd = access(TEST_DIR("/baz/wibble") "/bye.txt", O_RDONLY);
+	po_map_assertvalid(map);
 
-	// CHECK-NOT: bye.txt: -1
-	printf("bye.txt: %d\n", fd);
+	return (map);
+}
 
-	return 0;
+struct po_map*
+po_map_enlarge(struct po_map *map)
+{
+	struct po_map_entry *enlarged;
+	enlarged = calloc(sizeof(struct po_map_entry), 2 * map->capacity);
+	if (enlarged == NULL) {
+		return (NULL);
+	}
+	memcpy(enlarged, map->entries, map->length * sizeof(*enlarged));
+	free(map->entries);
+	map->entries = enlarged;
+	map->capacity = 2 * map->capacity;
+	return map;
+}
+
+size_t
+po_map_foreach(const struct po_map *map, po_map_iter_cb cb)
+{
+	struct po_map_entry *entry;
+	size_t n;
+
+	po_map_assertvalid(map);
+
+	for (n = 0; n < map->length; n++) {
+		entry = map->entries + n;
+
+		if (!cb(entry->name, entry->fd, entry->rights)) {
+			break;
+		}
+	}
+
+	return (n);
+}
+
+void
+po_map_release(struct po_map *map)
+{
+	if (map == NULL) {
+		return;
+	}
+
+	po_map_assertvalid(map);
+
+	map->refcount -= 1;
+
+	if (map->refcount == 0) {
+		free(map->entries);
+		free(map);
+	}
 }

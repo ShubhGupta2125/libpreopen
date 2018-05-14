@@ -47,27 +47,59 @@ static void find(const char *absolute, struct po_map *map);
 
 int main(int argc, char *argv[])
 {
-	// CHECK: map: [[MAP:.*]]
+	printf("-------------------------------------------------------\n");
+	printf("Creating map: ");
+
+	// CHECK: Creating map: [[MAP:.*]]
 	struct po_map *map = po_map_create(4);
-	printf("map: 0x%tx\n", map);
+	printf("0x%p\n", map);
+
+	printf("-------------------------------------------------------\n");
 
 	// CHECK: foo: [[FOO:.*]]
 	int foo = open(TEST_DIR("/foo"), O_RDONLY | O_DIRECTORY);
 	printf("foo: %d\n", foo);
 	assert(foo != -1);
 
-	// CHECK: map after foo: [[MAP]]
+	// CHECK: po_add("/foo", [[FOO]]) returned: [[MAP]]
 	map = po_add(map, "/foo", foo);
-	printf("map after foo: 0x%tx\n", map);
+	printf("po_add(\"/foo\", %d) returned: 0x%p\n", foo, map);
+
+	// CHECK: - name: '/foo', fd: [[FOO]]
+	po_map_foreach(map, po_print_entry);
+
+	// CHECK: -----
+	printf("-------------------------------------------------------\n");
 
 	// CHECK: wibble: [[WIBBLE:.*]]
-	int wibble = po_preopen(map, TEST_DIR("/baz/wibble"));
+	int wibble = po_preopen(map, TEST_DIR("/baz/wibble"), O_DIRECTORY);
 	printf("wibble: %d\n", wibble);
 	assert(wibble != -1);
 
-	// CHECK: map after wibble: [[MAP]]
+	// CHECK-DAG: - name: '/foo', fd: [[FOO]]
+	// CHECK-DAG: - name: '{{.*}}/Inputs/baz/wibble', fd: [[WIBBLE]]
+	po_map_foreach(map, po_print_entry);
+
+	// CHECK: -----
+	printf("-------------------------------------------------------\n");
+
+	// Re-adding a file descriptor at a different path (kind of like a
+	// nullfs mount) ought to work:
+
+	// CHECK: po_add("/wibble", [[WIBBLE]]) returned: [[MAP]]
 	map = po_add(map, "/wibble", wibble);
-	printf("map after wibble: 0x%tx\n", map);
+	printf("po_add(\"/wibble\", %d) returned: 0x%p\n", wibble, map);
+
+	// CHECK-DAG: - name: '/foo', fd: [[FOO]]
+	// CHECK-DAG: - name: '{{.*}}/Inputs/baz/wibble', fd: [[WIBBLE]]
+	// CHECK-DAG: - name: '/wibble', fd: [[WIBBLE]]
+	po_map_foreach(map, po_print_entry);
+
+	// CHECK: -----
+	printf("-------------------------------------------------------\n");
+
+	// CHECK: /foo -> [[FOO]]:
+	find("/foo", map);
 
 	// CHECK: /foo/bar/baz -> [[FOO]]:bar/baz
 	find("/foo/bar/baz", map);
@@ -77,6 +109,8 @@ int main(int argc, char *argv[])
 
 	// CHECK: /bar/wibble/foo -> -1:
 	find("/bar/wibble/foo", map);
+
+	printf("-------------------------------------------------------\n");
 
 	return 0;
 }

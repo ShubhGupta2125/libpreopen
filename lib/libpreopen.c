@@ -1,6 +1,6 @@
 /*-
  * Copyright (c) 2016 Stanley Uche Godfrey
- * Copyright (c) 2016 Jonathan Anderson
+ * Copyright (c) 2016, 2018 Jonathan Anderson
  * All rights reserved.
  *
  * This software was developed at Memorial University under the
@@ -29,94 +29,33 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/param.h>
-
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
+/**
+ * @file  libpreopen.c
+ * Implementation of high-level libpreopen functions.
+ *
+ * The functions defined in this source file are the highest-level API calls
+ * that client code will mostly use (plus po_map_create and po_map_release).
+ * po_isprefix is also defined here because it doesn't fit anywhere else.
+ */
 
 #include <assert.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <limits.h>
+#include <stdarg.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "internal.h"
-#include "libpreopen.h"
 
-static char error_buffer[1024];
-
-static struct po_map *global_map;
-
-/**
- * Enlarge a @ref po_map's capacity.
- *
- * This results in new memory being allocated and existing entries being copied.
- * If the allocation fails, the function will return NULL but the original
- * map will remain valid.
- */
-static struct po_map* po_map_enlarge(struct po_map *map);
-
-struct po_map*
-po_map_create(int capacity)
-{
-	struct po_map *map;
-	
-	map = malloc(sizeof(struct po_map));
-	if (map == NULL) {
-		return (NULL);
-	}
-
-	map->entries = calloc(sizeof(struct po_dir), capacity);
-	if (map->entries == NULL) {
-		free(map);
-		return (NULL);
-	}
-
-	map->capacity = capacity;
-	map->length = 0;
-
-	return (map);
-}
-
-void
-po_map_free(struct po_map *map)
-{
-	if (map == NULL) {
-		return;
-	}
-
-	free(map->entries);
-	free(map);
-}
-
-struct po_map*
-po_map_get()
-{
-	if (global_map == NULL) {
-		global_map = po_map_create(4);
-	}
-	return (global_map);
-}
-
-void
-po_map_set(struct po_map *map)
-{
-	if (global_map != NULL) {
-		po_map_free(global_map);
-	}
-
-	global_map = map;
-}
 
 struct po_map*
 po_add(struct po_map *map, const char *path, int fd)
 {
-	struct po_dir *d;
+	struct po_map_entry *entry;
+
+	po_map_assertvalid(map);
+
+	if (path == NULL || fd < 0) {
+		return (NULL);
+	}
 
 	if (map->length == map->capacity) {
 		map = po_map_enlarge(map);
@@ -124,201 +63,71 @@ po_add(struct po_map *map, const char *path, int fd)
 			return (NULL);
 		}
 	}
-	
-	d = map->entries + map->length;
+
+	entry = map->entries + map->length;
 	map->length++;
 
-	d->dirname = path;
-	d->dirfd = fd;
+	entry->name = strdup(path);
+	entry->fd = fd;
 
 #ifdef WITH_CAPSICUM
-	if (cap_rights_get(fd, &d->rights) != 0) {
+	if (cap_rights_get(fd, &entry->rights) != 0) {
 		return (NULL);
 	}
 #endif
 
+	po_map_assertvalid(map);
+
 	return (map);
-}
-
-int
-po_preopen(struct po_map *map, const char *path)
-{
-	int fd;
-
-	fd = openat(AT_FDCWD, path, O_DIRECTORY);
-	if (fd == -1) {
-		return (-1);
-	}
-
-	if (po_add(map, path, fd) == NULL) {
-		return (-1);
-	}
-
-	return (fd);
 }
 
 struct po_relpath
 po_find(struct po_map* map, const char *path, cap_rights_t *rights)
 {
-	struct po_relpath match;
+	const char *relpath ;
+	struct po_relpath match = { .relative_path = NULL, .dirfd = -1 };
 	size_t bestlen = 0;
 	int best = -1;
 
-	for(size_t i = 0; i < map->length; i++){
-		const struct po_dir *d = map->entries + i;
-		const char *dirname = d->dirname;
-		size_t len = strnlen(dirname, MAXPATHLEN);
+	po_map_assertvalid(map);
 
-		if ((len <= bestlen) || !po_isprefix(dirname, len, path)) {
+	if (path == NULL) {
+		return (match);
+	}
+
+	for(size_t i = 0; i < map->length; i++) {
+		const struct po_map_entry *entry = map->entries + i;
+		const char *name = entry->name;
+		size_t len = strnlen(name, MAXPATHLEN);
+
+		if ((len <= bestlen) || !po_isprefix(name, len, path)) {
 			continue;
 		}
 
 #ifdef WITH_CAPSICUM
-		if (rights && !cap_rights_contains(&d->rights, rights)) {
+		if (rights && !cap_rights_contains(&entry->rights, rights)) {
 			continue;
 		}
 #endif
 
-		best = d->dirfd;
+		best = entry->fd;
 		bestlen = len;
 	}
 
-	const char *relpath = path + bestlen;
+	relpath = path + bestlen;
+
 	if (*relpath == '/') {
 		relpath++;
+	}
+
+	if (*relpath == '\0') {
+		relpath = ".";
 	}
 
 	match.relative_path = relpath;
 	match.dirfd = best;
 
 	return match;
-}
-
-void 
-po_errormessage(const char *msg)
-{
-
-	snprintf(error_buffer, sizeof(error_buffer), "%s: %s",
-	         msg, strerror(errno));
-}
-
-const char*
-po_last_error()
-{
-
-	return (error_buffer);
-}
-
-int
-po_pack(struct po_map *map)
-{
-	char* trailerstring;
-	struct po_packed_map* data_array;
-	int fd, i, r, trailer_len, offset;
-
-	trailer_len=0;
-	for(i=0;i<map->length;i++){
-		trailer_len+=strlen(map->entries[i].dirname);
-		
-	}
-	const size_t shardmemory_blocksize=sizeof(struct po_packed_map)
-		+(map->length)*sizeof(struct po_packed_entry)+(trailer_len)*sizeof(char);
-	
-  	fd = shm_open(SHM_ANON, O_CREAT |O_RDWR, 0666);
-	if (fd == -1){
-		po_errormessage("shm_open");
-		return (-1);
-	}
-	r = ftruncate(fd,shardmemory_blocksize);
-	void *ptr = mmap(0,shardmemory_blocksize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (ptr == MAP_FAILED) {
-		po_errormessage("shm_open");
-		return (-1);
-	} else{
-		data_array=(struct po_packed_map*)ptr;
- 	}
-	data_array->entries=(struct po_packed_entry*)data_array+sizeof(struct po_packed_map);
-	trailerstring =(char*)data_array->entries+(map->length)*sizeof(struct po_packed_entry);
-	assert(trailerstring !=NULL);
-	for(i=0;i<map->length;i++){
-		strcat(trailerstring,map->entries[i].dirname);
-	}
-	data_array->count=map->length;
-	data_array->trailer_len=trailer_len;
-	offset=0;
-	for(i=0;i<map->length;i++){
-		data_array->entries[i].offset=offset;
-		data_array->entries[i].len=strlen(map->entries[i].dirname);
-		data_array->entries[i].fd=map->entries[i].dirfd;
-		offset+=data_array->entries[i].len;	
-	}
-	return fd;
-}
-struct po_map* po_unpack(int fd){
-	struct po_map *map;
-	struct stat fdStat;
-	struct po_packed_map* data_array=NULL;
-	char *trailerstring, *tempstr;
-	int i;
-	 if(fstat(fd,&fdStat) < 0){
-		po_errormessage("fdStat");
-		return (NULL);
-	}    
-       	void *ptr = mmap(0,fdStat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (ptr == MAP_FAILED) {
-    		po_errormessage("mmap");
-		return (NULL);
-	} else{
-		data_array=(struct po_packed_map*)ptr;
- 	}
-	data_array->entries=(struct po_packed_entry*)data_array+sizeof(struct po_packed_map);
-	trailerstring =(char*)data_array->entries+data_array->count*sizeof(struct po_packed_entry);
-	assert(data_array->entries !=NULL);
-	assert(trailerstring !=NULL);
-	map = malloc(sizeof(struct po_map));
-	if (map == NULL) {
-		return (NULL);
-	}
-	map->entries = calloc(sizeof(struct po_dir),data_array->count);
-	if (map->entries == NULL) {
-		free(map);
-		return (NULL);
-	}
-	map->length =data_array->count;
-	for(i=0;i<map->length;i++){
-		map->entries[i].dirfd=data_array->entries[i].fd;
-		tempstr=trailerstring+data_array->entries[i].offset;
-		map->entries[i].dirname=strndup(tempstr,data_array->entries[i].len);
-	}
-	return map;	
-}
-int po_map_length(struct po_map* map){
-	return (int)map->length;
-}
-
-const char* po_map_name(struct po_map *map, int k)
-{
-	return map->entries[k].dirname;
-}
-
-int po_map_fd(struct po_map *map,int k){
-	return map->entries[k].dirfd;
-}
-/* Internal (service) functions: */
-
-struct po_map*
-po_map_enlarge(struct po_map *map)
-{
-	struct po_dir *enlarged;
-	enlarged = calloc(sizeof(struct po_dir), 2 * map->capacity);
-	if (enlarged == NULL) {
-		return (NULL);
-	}
-	memcpy(enlarged, map->entries, map->length * sizeof(*enlarged));
-	free(map->entries);
-	map->entries = enlarged;
-	map->capacity = 2 * map->capacity;
-	return map;
 }
 
 bool
@@ -335,3 +144,39 @@ po_isprefix(const char *dir, size_t dirlen, const char *path)
 	return path[i] == '/' || path[i] == '\0';
 }
 
+int
+po_preopen(struct po_map *map, const char *path, int flags, ...)
+{
+	va_list args;
+	int fd, mode;
+
+	va_start(args, flags);
+	mode = va_arg(args, int);
+
+	po_map_assertvalid(map);
+
+	if (path == NULL) {
+		return (-1);
+	}
+
+	fd = openat(AT_FDCWD, path, flags, mode);
+	if (fd == -1) {
+		return (-1);
+	}
+
+	if (po_add(map, path, fd) == NULL) {
+		return (-1);
+	}
+
+	po_map_assertvalid(map);
+
+	return (fd);
+}
+
+bool
+po_print_entry(const char *name, int fd, cap_rights_t rights)
+{
+	printf(" - name: '%s', fd: %d, rights: <rights>\n",
+	       name, fd);
+	return (true);
+}

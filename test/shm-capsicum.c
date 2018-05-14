@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2016 Stanley Uche Godfrey
- * Copyright (c) 2017 Jonathan Anderson
+ * Copyright (c) 2017-2018 Jonathan Anderson
  * All rights reserved.
  *
  * This software was developed at Memorial University under the
@@ -80,13 +80,23 @@ int main(int argc, char *argv[]){
 	po_add(map, "foo", foo);
 
 	// CHECK: pre-opened [[WIBBLE:[0-9]+]] as "[[WIBBLE_PATH:.*]]"
-	wibble = po_preopen(map, TEST_DIR("/baz/wibble"));
+	wibble = po_preopen(map, TEST_DIR("/baz/wibble"), O_DIRECTORY);
 	assert(wibble >= 0);
 	printf("pre-opened %d as \"%s\"\n", wibble, TEST_DIR("/baz/wibble"));
 
 	// CHECK: packed map into SHM [[SHMFD:[0-9]+]]
 	shmfd = po_pack(map);
 	printf("packed map into SHM %d\n", shmfd);
+
+	// CHECK: unpacked SHM into map at [[COPY:0x.*]]
+	struct po_map *unpacked_copy = po_unpack(shmfd);
+	printf("unpacked SHM into map at %p\n", unpacked_copy);
+
+	// CHECK: contents of copy at [[COPY]]:
+	// CHECK-DAG: name: 'foo', fd: [[FOO]]
+	// CHECK-DAG: name: '[[WIBBLE_PATH]]', fd: [[WIBBLE]]
+	printf("contents of copy at %p:\n", unpacked_copy);
+	po_map_foreach(unpacked_copy, po_print_entry);
 
 	// clear close-on-exec flag: we want this to be propagated!
 	fcntl(shmfd, F_SETFD, 0);
@@ -113,6 +123,7 @@ int main(int argc, char *argv[])
 	char buffer[1024];
 	struct stat st;
 	struct po_map *map;
+	char *end, *env;
 	int fd, i, shmfd;
 
 	// CHECK: {{.*}}.child
@@ -123,51 +134,36 @@ int main(int argc, char *argv[])
 		"----------------------------------------\n");
 
 	cap_enter();
+	// Attempt to unwrap po_map from a shared memory segment specified by
+	// SHARED_MEMORYFD
+	env = getenv("LIB_PO_MAP");
+	if (env == NULL || *env == '\0') {
+		return (NULL);
+	}
 
+	// We expect this environment variable to be an integer and nothing but
+	// an integer.
 	// CHECK: got shmfd: [[SHMFD]]
-	shmfd = atoi(getenv("LIB_PO_MAP"));
+	shmfd = strtol(env, &end, 10);
+	if (*end != '\0') {
+		err(-1, "failed to extract SHM FD from envvar '%s'", env);
+	}
 	printf("got shmfd: %d\n", shmfd);
 
 	// CHECK: unpacked map: [[MAP:0x[0-9a-f]+]]
 	map = po_unpack(shmfd);
+	if (map == NULL) {
+		err(-1, "failed to unpack map");
+	}
 	printf("unpacked map: %p\n", map);
+
 	po_map_set(map);
 
 	// CHECK: contents of [[MAP]]:
-	// CHECK-NEXT: [[FOO]]: "foo"
-	// CHECK-NEXT: [[WIBBLE]]: "[[WIBBLE_PATH]]"
+	// CHECK-DAG: name: 'foo', fd: [[FOO]]
+	// CHECK-DAG: name: '[[WIBBLE_PATH]]', fd: [[WIBBLE]]
 	printf("contents of %p:\n", map);
-	for(i = 0; i < po_map_length(map); i++) {
-		printf("%8d: \"%s\"\n", po_map_fd(map, i), po_map_name(map, i));
-	}
-
-	// CHECK: hi.txt size: 3
-	i = stat("foo/bar/hi.txt", &st);
-	if (i != 0) {
-		errx(-1, "stat(\"foo/bar/hi.txt\") failed");
-	}
-	printf("hi.txt size: %lu\n", st.st_size);
-
-	// CHECK-NEXT: hi.txt contents: hi
-	fd = open("foo/bar/hi.txt", O_RDONLY);
-	read(fd, buffer, sizeof(buffer));
-	printf("hi.txt contents: %s\n", buffer);
-
-	// CHECK: bye.txt size: 4
-	i = stat(TEST_DIR("/baz/wibble") "/bye.txt", &st);
-	if (i != 0) {
-		errx(-1, "stat(TEST_DIR(\"/baz/wibble\")) failed");
-	}
-	printf("bye.txt size: %lu\n", st.st_size);
-
-	// CHECK-NEXT: bye.txt contents: bye
-	fd = open(TEST_DIR("/baz/wibble") "/bye.txt", O_RDONLY);
-	read(fd, buffer, sizeof(buffer));
-	printf("bye.txt contents: %s\n", buffer);
-
-	// CHECK: non-existent: -1
-	fd = open("non-existent", O_RDONLY);
-	printf("non-existent: %d\n", fd);
+	po_map_foreach(map, po_print_entry);
 
 	return 0;
 }
