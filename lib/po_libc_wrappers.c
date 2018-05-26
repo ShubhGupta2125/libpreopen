@@ -45,7 +45,6 @@
 #include <unistd.h>
 
 #include "internal.h"
-using namespace std;
 
 /**
  * A default po_map that can be used implicitly by libc wrappers.
@@ -109,7 +108,7 @@ open(const char *path, int flags, ...)
 	va_start(args, flags);
 	mode = va_arg(args, int);
 	rel = find_relative(path, NULL);
-	cout<<rel.dirfd<<rel.relative_path<<std::endl;
+	printf("The FD is %d and the path is %s",rel.dirfd,rel.relative_path);
 
 
 	return openat(rel.dirfd, rel.relative_path, flags, mode);
