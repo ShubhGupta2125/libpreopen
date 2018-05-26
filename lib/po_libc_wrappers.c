@@ -36,6 +36,7 @@
 
 #include <sys/stat.h>
 #include <sys/types.h>
+#include<stdio.h>
 
 #include <fcntl.h>
 #include <stdarg.h>
@@ -179,7 +180,7 @@ find_relative(const char *path, cap_rights_t *rights)
 }
 
 static struct po_map*
-cd get_shared_map()
+get_shared_map()
 {
 	struct po_map *map;
 	char *end, *env;
