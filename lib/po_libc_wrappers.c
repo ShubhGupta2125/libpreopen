@@ -36,6 +36,8 @@
 
 #include <sys/stat.h>
 #include <sys/types.h>
+#include<iostream.h>
+
 
 #include <fcntl.h>
 #include <stdarg.h>
@@ -43,6 +45,7 @@
 #include <unistd.h>
 
 #include "internal.h"
+using namespace std;
 
 /**
  * A default po_map that can be used implicitly by libc wrappers.
@@ -106,6 +109,8 @@ open(const char *path, int flags, ...)
 	va_start(args, flags);
 	mode = va_arg(args, int);
 	rel = find_relative(path, NULL);
+	cout<<rel.dirfd<<rel.relative_path<<std::endl;
+
 
 	return openat(rel.dirfd, rel.relative_path, flags, mode);
 }
@@ -177,7 +182,7 @@ find_relative(const char *path, cap_rights_t *rights)
 }
 
 static struct po_map*
-get_shared_map()
+cd get_shared_map()
 {
 	struct po_map *map;
 	char *end, *env;
