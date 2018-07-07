@@ -170,7 +170,7 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 		{
 
 		const struct po_map_entry *entry = map->entries + i;
-		const char *name = entry->name;
+		if((entry->name) != NULL) const char *name = entry->name;
 
 		if( (strcmp(name, node) == 0) && entry->flag == PREOP_SOCKET)
 			{
