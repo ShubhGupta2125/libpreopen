@@ -163,7 +163,7 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 
 	if(map == NULL)
 	{
-		return EAI_SYSTEM;
+		return -1;
 	} 
 	else 
 	{
@@ -190,7 +190,7 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 		}
 	}
 
-		return EAI_SYSTEM;
+		return -1;
 	}
 }
 
