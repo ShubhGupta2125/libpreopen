@@ -180,7 +180,7 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 				(*res)->ai_protocol = 1000;
 				(*res)->ai_addrlen = 1000;
 				(*res)->ai_addr->sa_family = entry->fd;
-				(*res)->ai_addr->sa_data = strdup("passed");
+				strcpy((*res)->ai_addr->sa_data, "passed");
 				return 0;
 			}
 		}
