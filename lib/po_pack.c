@@ -196,6 +196,9 @@ po_unpack(int fd)
 		entry->flag = packed->entries[i].flag;
 		entry->name = strndup(strtab + packed->entries[i].offset,
 			packed->entries[i].len);
+		printf("The FD is %d", entry->fd);
+		printf("The flag is %d", entry->flag);
+		printf("The name is %s", entry->name);
 	}
 
 	po_map_assertvalid(map);
