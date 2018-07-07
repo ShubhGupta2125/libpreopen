@@ -159,8 +159,8 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 {
 	struct po_map *map;
 
-	map = get_shared_map;
-	
+	map = get_shared_map();
+
 	if(map == NULL)
 	{
 		return EAI_SYSTEM;
