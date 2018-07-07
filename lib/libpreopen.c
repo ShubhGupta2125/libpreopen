@@ -47,7 +47,7 @@
 
 
 struct po_map*
-po_add(struct po_map *map, const char *path, int fd)
+po_add(struct po_map *map, const char *path, int fd, int flag)
 {
 	struct po_map_entry *entry;
 
@@ -69,6 +69,7 @@ po_add(struct po_map *map, const char *path, int fd)
 
 	entry->name = strdup(path);
 	entry->fd = fd;
+	entry->flag = flag;
 
 #ifdef WITH_CAPSICUM
 	if (cap_rights_get(fd, &entry->rights) != 0) {
@@ -164,7 +165,7 @@ po_preopen(struct po_map *map, const char *path, int flags, ...)
 		return (-1);
 	}
 
-	if (po_add(map, path, fd) == NULL) {
+	if (po_add(map, path, fd, PREOP_FILE) == NULL) {
 		return (-1);
 	}
 

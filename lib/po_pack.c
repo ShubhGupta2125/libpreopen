@@ -55,6 +55,9 @@ struct po_packed_entry {
 	/** Integer file descriptor */
 	int fd;
 
+	/** Integer flag to specify a socket or a file */
+	int flag;
+
 	/** Offset of the entry's name within the po_packed_map's string table */
 	int offset;
 
@@ -133,6 +136,7 @@ po_pack(struct po_map *map)
 		entry = packed->entries + i;
 
 		entry->fd = map->entries[i].fd;
+		entry->flag = map->entries[i].flag;
 		entry->offset = offset;
 		entry->len = strlen(map->entries[i].name);
 		strlcpy(strtab + offset, map->entries[i].name,
@@ -189,6 +193,7 @@ po_unpack(int fd)
 		entry = map->entries + i;
 
 		entry->fd = packed->entries[i].fd;
+		entry->flag = packed->entries[i].flag;
 		entry->name = strndup(strtab + packed->entries[i].offset,
 			packed->entries[i].len);
 	}

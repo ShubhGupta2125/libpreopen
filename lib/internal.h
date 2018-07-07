@@ -49,6 +49,7 @@
 
 #include "libpreopen.h"
 
+
 /**
  * An entry in a po_map.
  *
@@ -65,6 +66,9 @@ struct po_map_entry {
 
 	/** File descriptor (which may be a directory) */
 	int fd;
+
+	/** Flag to determine if the entry is a file or a socket */
+	int flag;
 
 #ifdef WITH_CAPSICUM
 	/** Capability rights associated with the file descriptor */

@@ -42,6 +42,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
 
 #include "internal.h"
 
@@ -149,6 +152,51 @@ stat(const char *path, struct stat *st)
 	struct po_relpath rel = find_relative(path, NULL);
 
 	return fstatat(rel.dirfd, rel.relative_path,st,AT_SYMLINK_NOFOLLOW);
+}
+
+int
+getaddrinfo(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo *(*res))
+{
+	struct po_map *map;
+	map = get_shared_map;
+	if(map == NULL)
+	{
+		return NULL;
+	} 
+	else 
+	{
+		
+		for(size_t i = 0; i < map->length; i++) 
+		{
+
+		const struct po_map_entry *entry = map->entries + i;
+
+		if( strcmp((entry->name), node) == 0 && entry->flag == PREOP_SOCKET)
+			{
+				(*res)->ai_flags = 1000;
+				(*res)->ai_family = 1000;
+				(*res)->ai_socktype = 1000;
+				(*res)->ai_protocol = 1000;
+				(*res)->ai_addrlen = 1000;
+				(*res)->ai_addr->sa_family = entry->fd;
+				strncpy(((*res)->ai_addr->sa_data), "passed", 7);
+				return 0;
+			}
+		}
+
+		return -1;
+	}
+}
+
+int 
+connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
+{
+	if ( strcmp((addr->sa_data), "passed") == 0 )
+	{
+		dup2(sockfd, (int)(addr->sa_family));
+		return 0;
+	}
+	return -1;
 }
 
 void

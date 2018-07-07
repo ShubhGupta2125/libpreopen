@@ -39,8 +39,12 @@
 
 #include <stdbool.h>
 
+#define PREOP_FILE 00
+#define PREOP_SOCKET 01
+
 
 __BEGIN_DECLS
+
 
 /**
  * @struct po_map
@@ -112,7 +116,7 @@ size_t po_map_foreach(const struct po_map*, po_map_iter_cb);
  *                  (which may or may not be the path used to open it)
  * @param   fd      the directory descriptor (must be a directory!)
  */
-struct po_map* po_add(struct po_map *map, const char *path, int fd);
+struct po_map* po_add(struct po_map *map, const char *path, int fd, int flag);
 
 /**
  * Pre-open a path and store it in a @ref po_map for later use.
