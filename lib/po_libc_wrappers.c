@@ -171,7 +171,8 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 
 		const struct po_map_entry *entry = map->entries + i;
 
-		if( strcmp((entry->name), node) == 0 && entry->flag == PREOP_SOCKET)
+		if((entry->name) != NULL)
+		if( (strcmp((entry->name), node) == 0) && entry->flag == PREOP_SOCKET)
 			{
 				(*res)->ai_flags = 1000;
 				(*res)->ai_family = 1000;
@@ -179,12 +180,12 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 				(*res)->ai_protocol = 1000;
 				(*res)->ai_addrlen = 1000;
 				(*res)->ai_addr->sa_family = entry->fd;
-				strncpy(((*res)->ai_addr->sa_data), "passed", 7);
+				(*res)->ai_addr->sa_data = strdup("passed");
 				return 0;
 			}
 		}
 
-		return -1;
+		return EAI_SYSTEM;
 	}
 }
 
