@@ -172,7 +172,6 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 		const struct po_map_entry *entry = map->entries + i;
 		const char *name = entry->name;
 
-		if(name != NULL)
 		if( (strcmp(name, node) == 0) && entry->flag == PREOP_SOCKET)
 			{
 				(*res)->ai_flags = 1000;
