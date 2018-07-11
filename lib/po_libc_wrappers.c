@@ -154,7 +154,7 @@ stat(const char *path, struct stat *st)
 	return fstatat(rel.dirfd, rel.relative_path,st,AT_SYMLINK_NOFOLLOW);
 }
 
-int
+/*int
 getaddrinfo(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo *(*res))
 {
 	struct po_map *map;
@@ -172,7 +172,6 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 		{
 
 		const struct po_map_entry *entry = map->entries + i;
-		if((entry->name) != NULL){
 			const char *name = entry->name;
 		
 
@@ -188,7 +187,6 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 				return 0;
 			}
 		}
-	}
 
 		return 0;
 	}
@@ -203,7 +201,7 @@ connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 		return 0;
 	}
 	return -1;
-}
+}*/
 
 void
 po_set_libc_map(struct po_map *map)
