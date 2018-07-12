@@ -209,9 +209,9 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 int 
 connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
-	if(addr = NULL)
+	if(addr == NULL)
 		return 1;
-	
+
 	if ( strcmp((addr->sa_data), "passed") == 0 )
 	{
 		dup2(sockfd, (int)(addr->sa_family));
