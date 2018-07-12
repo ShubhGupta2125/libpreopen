@@ -163,6 +163,9 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 
 	po_map_assertvalid(map);
 
+	if( node == NULL )
+		return 1;
+
 	if(res == NULL)
 		return 1;
 
