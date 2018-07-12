@@ -175,7 +175,7 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 	} 
 	else 
 	{
-		printf("The **res is %p", **res);
+		printf("The **res is %p", res);
 		printf("The *res is %p", *res);
 		for(size_t i = 0; i < map->length; i++) 
 		{
