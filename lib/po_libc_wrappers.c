@@ -186,13 +186,15 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 					struct addrinfo po_addrinfo;
 					(*res) = &po_addrinfo;
 				}
-				
+
 				(*res)->ai_family = 1000;
 				(*res)->ai_socktype = 1000;
 				(*res)->ai_protocol = 1000;
 				(*res)->ai_addrlen = 1000;
 				(*res)->ai_addr->sa_family = (entry->fd);
 				strcpy((*res)->ai_addr->sa_data, "passed");
+				(*res)->ai_next = NULL;
+				(*res)->ai_cannonname = NULL; 
 				return 0;
 			}
 		}
