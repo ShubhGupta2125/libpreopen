@@ -41,6 +41,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
+
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -190,6 +191,7 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 				if(*res == NULL)
 				{
 					struct addrinfo po_addrinfo;
+					memset(&po_addrinfo, 0, sizeof(po_addrinfo));
 					(*res) = &po_addrinfo;
 				}
 
