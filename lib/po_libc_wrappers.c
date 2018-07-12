@@ -154,41 +154,50 @@ stat(const char *path, struct stat *st)
 	return fstatat(rel.dirfd, rel.relative_path,st,AT_SYMLINK_NOFOLLOW);
 }
 
-/*int
+int
 getaddrinfo(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo *(*res))
 {
 	struct po_map *map;
 
 	map = get_shared_map();
 
+	po_map_assertvalid(map);
+
+	if(res == NULL)
+		return 1;
+
 	if(map == NULL)
 	{
-		return 0;
+		return  1;
 	} 
 	else 
 	{
-		
 		for(size_t i = 0; i < map->length; i++) 
 		{
 
 		const struct po_map_entry *entry = map->entries + i;
-			const char *name = entry->name;
+		const char *name = entry->name;
 		
 
 		if( (strcmp(name, node) == 0) && entry->flag == PREOP_SOCKET)
 			{
-				(*res)->ai_flags = 1000;
+				if(*res == NULL)
+				{
+					struct addrinfo po_addrinfo;
+					(*res) = &po_addrinfo;
+				}
+				
 				(*res)->ai_family = 1000;
 				(*res)->ai_socktype = 1000;
 				(*res)->ai_protocol = 1000;
 				(*res)->ai_addrlen = 1000;
-				(*res)->ai_addr->sa_family = entry->fd;
+				(*res)->ai_addr->sa_family = (entry->fd);
 				strcpy((*res)->ai_addr->sa_data, "passed");
 				return 0;
 			}
 		}
 
-		return 0;
+		return 1;		
 	}
 }
 
@@ -201,7 +210,7 @@ connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 		return 0;
 	}
 	return -1;
-}*/
+}
 
 void
 po_set_libc_map(struct po_map *map)
