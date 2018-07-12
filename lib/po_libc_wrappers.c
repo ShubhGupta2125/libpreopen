@@ -194,7 +194,7 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 				(*res)->ai_addr->sa_family = (entry->fd);
 				strcpy((*res)->ai_addr->sa_data, "passed");
 				(*res)->ai_next = NULL;
-				(*res)->ai_cannonname = NULL; 
+				(*res)->ai_canonname = NULL; 
 				return 0;
 			}
 		}
