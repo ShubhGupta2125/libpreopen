@@ -190,9 +190,7 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 			{
 				if(*res == NULL)
 				{
-					struct addrinfo po_addrinfo;
-					memset(&po_addrinfo, 0, sizeof(po_addrinfo));
-					(*res) = &po_addrinfo;
+					*res = malloc(sizeof(struct addrinfo));
 				}
 
 				(*res)->ai_family = 1000;
