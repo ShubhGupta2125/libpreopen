@@ -189,9 +189,7 @@ getaddrinfo(const char *node, const char *service, const struct addrinfo *hints,
 		if( (strcmp(name, node) == 0) && entry->flag == PREOP_SOCKET)
 			{
 				if(*res == NULL)
-				{
-					*res = malloc(sizeof(struct addrinfo));
-				}
+					(*res) = malloc(sizeof(struct addrinfo));
 
 				(*res)->ai_family = 1000;
 				(*res)->ai_socktype = 1000;
